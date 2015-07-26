@@ -13,6 +13,7 @@ var coffeeify = require('coffeeify');
 // add custom browserify options here
 var customOpts = {
   entries: ['js/main.coffee'],
+  extensions: ['.coffee'],
   debug: true
 };
 var opts = assign({}, watchify.args, customOpts);
