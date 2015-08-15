@@ -8,10 +8,14 @@ PLAYER =
   HEIGHT: 40
   MAX_NUMBER: 6
 
+PLAYER_ACTIONS =
+  MOVE: "move"
 
 STORE =
   LENGTH: 50,
   HEIGHT: 27
+  SCORE: 100
+
 
 class Game
   preload: ->
@@ -25,14 +29,16 @@ class Game
     # punch sound for self being moved back
   create: ->
     # keyboard setup
-    pauseKey = @game.input.keyboard.addKey(Phaser.Keyboard.P)
-    pauseKey.onDown.add(@pauseHandler, @)
+    @input.keyboard.addCallbacks(@, @keyboardHandler, null, null)
+    @awaitUserInput = false
+    @userAction = null
     # display
     @game.stage.backgroundColor = '#000000'
     @game.add.text(90, 18, 'Line', { font: "bold 18px sans-serif", fill: "#fff", align: "center" })
+    @scoreText = @game.add.text(500, 500, 'Score: 0', { font: "bold 18px sans-serif", fill: "#fff", align: "center" })
+    @score = 0
     @store = @game.add.sprite(@game.world.width/2 - STORE.LENGTH, 0, 'store')
     # variable/objects setup
-    @counter = 0
     @personInStore = null
     @firstPosition =
       x: @store.x + OFFSET.X
@@ -42,6 +48,8 @@ class Game
       # y: @firstPosition.y + (PLAYER.HEIGHT + 5) * (PLAYER.MAX_NUMBER - 1)
     # functionality
     @line = @createPlayers(PLAYER.MAX_NUMBER)
+    @me = @game.add.sprite(@firstPosition.x,@firstPosition.y + (PLAYER.HEIGHT + 5) * @line.length, 'me')
+    @line.push(@me)
     # lastPlayer = @players[@players.length - 1]
     # @me = @game.add.sprite(lastPlayer.x,lastPlayer.y + PLAYER.HEIGHT + 5,'me')
     # myPlayer = aPlayerThatIsMe
@@ -49,13 +57,13 @@ class Game
     gap = null # gap is the index for lining up, it doesn't exist
     lastAction = null
     score = 0
-    @game.time.events.loop(Phaser.Timer.SECOND / 2, @updateTurn, @)
-    console.log(@line.map((i) ->
-      if i instanceof PIXI.DisplayObject
-        return "i: " + i.children[0].text + "position: " + i.y
-      else
-        return i
-    ))
+    @game.time.events.loop(Phaser.Timer.SECOND / 4, @updateTurn, @)
+    # console.log(@line.map((i) ->
+    #   if i instanceof PIXI.DisplayObject
+    #     return "i: " + i.children[0].text + "position: " + i.y
+    #   else
+    #     return i
+    # ))
 
   updateTurn: ->
     ## TODO: this is only so while during testing we can have a delay to see what's going on
@@ -69,31 +77,39 @@ class Game
     console.log(movable)
 
     #### move those who can move
-
-    # if @playerInStore && playerInFrontOfStore
-    #   @playerInStore.visible = true
-    #   @line.push(@playerInStore)
-    #   @playerInStore = null
-
-    # for i in movable
-      # if i == 0
-        # @playerInStore = @line[0]
-        # @playerInStore.visible = false
-        # @line[0] = null
     if movable
-      @line[movable - 1] = @line[movable]
-      @movedPerson = @line[movable - 1]
-      @movedPerson.y = @firstPosition.y + (movable - 1) * (PLAYER.HEIGHT + 5)
-      if movable == @line.length - 1
-        @line.pop()
+      player = @line[movable]
+      if player == @me
+        # ask for user input
+        @awaitUserInput = true
+        if !@userAction
+          return
+        else
+          @line[movable - 1] = player
+          @movedPerson = @line[movable - 1]
+          @movedPerson.y = @firstPosition.y + (movable - 1) * (PLAYER.HEIGHT + 5)
+          if movable == @line.length - 1
+            @line.pop()
+          else
+            @line[movable] = null
       else
-        @line[movable] = null
+        @line[movable - 1] = player
+        @movedPerson = @line[movable - 1]
+        @movedPerson.y = @firstPosition.y + (movable - 1) * (PLAYER.HEIGHT + 5)
+        if movable == @line.length - 1
+          @line.pop()
+        else
+          @line[movable] = null
     else
       lastPerson = @personInStore
       @personInStore = @line[0]
       @personInStore.visible = false
       @line[0] = null
       if lastPerson
+        if lastPerson == @me
+          console.log('me')
+          @score += STORE.SCORE
+          @scoreText.text = 'Score: ' + @score
         # @line.push(@personInStore)
         # @personInStore.visible = true
         # @personInStore.y = @firstPosition.y + (@line.length - 1) * (PLAYER.HEIGHT + 5)
@@ -101,12 +117,13 @@ class Game
         lastPerson.y = @firstPosition.y + (@line.length - 1) * (PLAYER.HEIGHT + 5)
         lastPerson.visible = true
 
-    console.log(@line.map((i) ->
-      if i instanceof PIXI.DisplayObject
-        return "i: " + i.children[0].text + "position: " + i.y
-      else
-        return i
-    ))
+    @userAction = null
+    # console.log(@line.map((i) ->
+    #   if i instanceof PIXI.DisplayObject
+    #     return "i: " + i.children[0].text + "position: " + i.y
+    #   else
+    #     return i
+    # ))
 
     # console.log(@line.map((i) ->
     #   if i instanceof PIXI.DisplayObject
@@ -159,18 +176,24 @@ class Game
     #   # move myPlayer or to the back of the line
     #   # in the future, with multiple stores and deeper concepts, it would prompt you
     # updateScore()
-
-  pauseHandler: ->
-    if @game.paused
-      console.log('Game Unpaused')
-      @game.paused = false
-    else
-      console.log('Game Paused')
-      @game.paused = true
+  keyboardHandler: ->
+    code = @input.keyboard.event.keyCode
+    switch code
+      when Phaser.Keyboard.P
+        if @game.paused
+          console.log('Game Unpaused')
+          @game.paused = false
+        else
+          console.log('Game Paused')
+          @game.paused = true
+      when Phaser.Keyboard.UP
+        if @awaitUserInput
+          @userAction = PLAYER_ACTIONS.MOVE
+          @awaitUserInput = false
 
   createPlayers: (num) ->
     players = []
-    for i in [0..num]
+    for i in [0...num]
       newPlayer = @game.add.sprite(@firstPosition.x,@firstPosition.y + (PLAYER.HEIGHT + 5) * i,'person')
       newPlayer.addChild(@game.add.text(0,0, i, {fontSize: '20px'}))
       players.push(newPlayer)
